@@ -242,7 +242,7 @@ Item {
      * it, so a cursor sitting on the strip's edge cannot bounce it.
      */
     readonly property bool hidden: Flags.autoHide && !revealSession && !expanded && !dragActive
-        && !transientLive && mode !== "game"
+        && !transientLive && mode !== "game" && !compressShowing
 
     /**
      * The special workspace shown on this pill's monitor, surfaced as a plain word
@@ -296,6 +296,20 @@ Item {
      */
     readonly property real restW: 160 * s
     readonly property real restH: 38 * s
+
+    /**
+     * Compression face: while compress10mb runs, the resting pill itself widens
+     * into a progress capsule instead of hanging a separate badge underneath.
+     * Same height as rest, so the morph reads as the notch stretching sideways;
+     * 100% is held for a beat on success before it settles back.
+     */
+    readonly property real compressW: 236 * s
+    readonly property real compressH: 42 * s
+    property bool compressHold: false
+    readonly property bool compressShowing: Compress.active || compressHold
+    readonly property string compressCaption: Compress.total > 1
+        ? Compress.index + "/" + Compress.total + " \u00b7 " + Compress.label
+        : Compress.label
 
     /**
      * Strip-face geometry: a compact top-centre notch pill. Its width is
@@ -615,7 +629,8 @@ Item {
         : (quickCounting ? "quickCount"
         : (toastActive && Notifs.toastCritical && !held ? "toast"
         : (toastActive && !held ? "toast"
-        : (expanded ? "hover" : "rest")))))))
+        : (compressShowing && !expanded ? "compress"
+        : (expanded ? "hover" : "rest"))))))))
 
     /**
      * AppImage drag-install state, live only while a file hovers the resting pill.
@@ -930,7 +945,7 @@ Item {
         onExited: () => sleepWatcher.running = true
     }
 
-    property real morphRadius: (mode === "rest" || mode === "hover" || mode === "game") ? restCorner : openCorner
+    property real morphRadius: (mode === "rest" || mode === "hover" || mode === "game" || mode === "compress") ? restCorner : openCorner
 
     /**
      * Target geometry for the non-surface morph modes. Surface sizes come from
@@ -947,6 +962,7 @@ Item {
         quickChoose: () => Qt.size(quickChooseW, quickChooseH),
         quickCount:  () => Qt.size(quickCountW, quickCountH),
         dragOver:    () => Qt.size(dragOverW, dragOverH),
+        compress:    () => Qt.size(compressW, compressH),
         game:        () => Qt.size(gameW, gameH)
     })
 
@@ -1840,7 +1856,7 @@ Item {
     Item {
         id: rest
         anchors.fill: parent
-        opacity: (pill.expanded || pill.dragActive || pill.mode === "game" || pill.mode === "toast" || pill.mode === "quickChoose" || pill.mode === "quickCount") ? 0 : 1
+        opacity: (pill.expanded || pill.dragActive || pill.mode === "game" || pill.mode === "toast" || pill.mode === "quickChoose" || pill.mode === "quickCount" || pill.mode === "compress") ? 0 : 1
         visible: opacity > 0.01
         Behavior on opacity { NumberAnimation { duration: pill.mode === "rest" ? Motion.pillFast : Math.round(260 * Motion.mult) } }
 
@@ -2110,6 +2126,23 @@ Item {
                     Behavior on scale { NumberAnimation { duration: Motion.pillStandard; easing.type: Motion.easeStandard } }
                 }
             }
+            /**
+             * All of this monitor's workspaces, always visible on the resting
+             * pill rather than only in the hover face. Display-only here: the
+             * hover face carries the clickable copy, because hovering the pill
+             * morphs this row away before a pointer could reach a dot.
+             */
+            Workspaces {
+                id: restWss
+                visible: pill.specialView === "" && !pill.stripBar && Flags.mainDisplay !== "status"
+                anchors.verticalCenter: parent.verticalCenter
+                width: implicitWidth
+                screenName: pill.screenName
+                s: pill.s
+                gap: 5 * pill.s
+                enabled: false
+            }
+
             Text {
                 visible: pill.specialView === "" && Flags.mainDisplay === "minimal"
                 anchors.verticalCenter: parent.verticalCenter
@@ -2972,6 +3005,65 @@ Item {
                 }
 
                 Item {
+                    id: updateIcon
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: Flags.pillShowUpdate
+                    width: 17 * pill.s
+                    height: 17 * pill.s
+
+                    GlyphIcon {
+                        anchors.fill: parent
+                        name: "download"
+                        color: updateArea.containsMouse ? Theme.cream : Theme.iconDim
+                        stroke: 1.7
+                    }
+
+                    MouseArea {
+                        id: updateArea
+                        anchors.fill: parent
+                        anchors.margins: -6 * pill.s
+                        hoverEnabled: true
+                        enabled: hover.live
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Quickshell.execDetached([
+                            "kitty",
+                            "-T",
+                            "System Update",
+                            Quickshell.env("HOME") + "/.local/bin/update-all"
+                        ])
+                    }
+                }
+
+                Item {
+                    id: compressIcon
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: Flags.pillShowCompress
+                    width: 17 * pill.s
+                    height: 17 * pill.s
+
+                    GlyphIcon {
+                        anchors.fill: parent
+                        name: "layers"
+                        color: Compress.active ? Theme.vermLit
+                            : (compressArea.containsMouse ? Theme.cream : Theme.iconDim)
+                        stroke: 1.7
+                    }
+
+                    MouseArea {
+                        id: compressArea
+                        anchors.fill: parent
+                        anchors.margins: -6 * pill.s
+                        hoverEnabled: true
+                        enabled: hover.live
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Quickshell.execDetached([
+                            Quickshell.env("HOME") + "/.local/bin/compress10mb",
+                            "--pick"
+                        ])
+                    }
+                }
+
+                Item {
                     id: powerIcon
                     anchors.verticalCenter: parent.verticalCenter
                     visible: Flags.pillShowPower
@@ -2998,6 +3090,108 @@ Item {
                 }
             }
         }
+    }
+
+    /**
+     * Compression face. The pill body is the loading bar: the resting capsule
+     * stretches sideways into a layers glyph, the file name and a live
+     * percentage, with a thin determinate track riding the bottom edge. It uses
+     * the same morph curve as every other pill mode, so starting a job reads as
+     * the notch growing rather than a popup appearing under it.
+     */
+    Item {
+        id: compressFace
+        anchors.fill: parent
+        enabled: pill.mode === "compress"
+        opacity: pill.mode === "compress" ? Math.pow(pill.morphCloseness, 1.2) : 0
+        visible: opacity > 0.01
+        Behavior on opacity {
+            NumberAnimation {
+                duration: pill.mode === "compress" ? Motion.pillFast : Math.round(160 * Motion.mult)
+                easing.type: Motion.easeStandard
+            }
+        }
+
+        Row {
+            id: compressRow
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: -3 * pill.s
+            spacing: 7 * pill.s
+
+            GlyphIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 13 * pill.s
+                height: 13 * pill.s
+                name: "layers"
+                color: Theme.vermLit
+                stroke: 1.7
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: pill.compressCaption
+                width: Math.min(implicitWidth, 128 * pill.s)
+                elide: Text.ElideRight
+                color: Theme.cream
+                font.family: Theme.font
+                font.pixelSize: 11.5 * pill.s
+                font.weight: Font.Medium
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: Math.round(Compress.percent) + "%"
+                color: Theme.vermLit
+                font.family: Theme.font
+                font.pixelSize: 10.5 * pill.s
+                font.weight: Font.DemiBold
+                font.features: ({ "tnum": 1 })
+            }
+        }
+
+        Rectangle {
+            id: compressTrack
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6 * pill.s
+            width: parent.width - 30 * pill.s
+            height: 3 * pill.s
+            radius: height / 2
+            color: Theme.threadBg
+
+            Rectangle {
+                width: parent.width * Math.max(0, Math.min(100, Compress.percent)) / 100
+                height: parent.height
+                radius: parent.radius
+                color: Theme.vermLit
+                Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+            }
+        }
+    }
+
+    /**
+     * Hold the finished bar at 100% for a moment, then let the pill settle back
+     * to its resting face. A failed job skips the hold: there is nothing worth
+     * lingering on, and the notification carries the reason.
+     */
+    Connections {
+        target: Compress
+        function onActiveChanged() {
+            if (Compress.active) {
+                pill.compressHold = false;
+                compressHoldTimer.stop();
+            } else if (Compress.ok && Compress.percent >= 99) {
+                pill.compressHold = true;
+                compressHoldTimer.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: compressHoldTimer
+        interval: 1500
+        onTriggered: pill.compressHold = false
     }
 
     /**
@@ -3676,5 +3870,4 @@ sourceComponent: Media {
             onClicked: ScreenRec.cancel()
         }
     }
-
 }

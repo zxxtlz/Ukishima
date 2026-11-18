@@ -29,6 +29,8 @@ SettingsSurface {
         { item: scratchRow, kind: "toggle", get: function () { return Flags.pillShowScratch; }, set: function (v) { Flags.pillShowScratch = v; } },
         { item: launchRow, kind: "toggle", get: function () { return Flags.pillShowLauncher; }, set: function (v) { Flags.pillShowLauncher = v; } },
         { item: emojiRow, kind: "toggle", get: function () { return Flags.pillShowEmoji; }, set: function (v) { Flags.pillShowEmoji = v; } },
+        { item: updateRow, kind: "toggle", get: function () { return Flags.pillShowUpdate; }, set: function (v) { Flags.pillShowUpdate = v; } },
+        { item: compressRow, kind: "toggle", get: function () { return Flags.pillShowCompress; }, set: function (v) { Flags.pillShowCompress = v; } },
         { item: powerRow, kind: "toggle", get: function () { return Flags.pillShowPower; }, set: function (v) { Flags.pillShowPower = v; } }
     ]
 
@@ -124,6 +126,32 @@ SettingsSurface {
             s: root.s
             on: Flags.pillShowEmoji
             onToggled: Flags.pillShowEmoji = !Flags.pillShowEmoji
+        }
+    }
+
+    SettingsRow {
+        id: updateRow
+        surface: root
+        name: "System update"
+        icon: "download"
+
+        LinkToggle {
+            s: root.s
+            on: Flags.pillShowUpdate
+            onToggled: Flags.pillShowUpdate = !Flags.pillShowUpdate
+        }
+    }
+
+    SettingsRow {
+        id: compressRow
+        surface: root
+        name: "Compress to 10 MB"
+        icon: "layers"
+
+        LinkToggle {
+            s: root.s
+            on: Flags.pillShowCompress
+            onToggled: Flags.pillShowCompress = !Flags.pillShowCompress
         }
     }
 

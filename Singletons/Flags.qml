@@ -127,6 +127,14 @@ Singleton {
     property alias pillShowEmoji: adapter.pillShowEmoji
     property alias pillShowPower: adapter.pillShowPower
     property alias pillShowTimer: adapter.pillShowTimer
+    //* Package updater: the download glyph in the hover row. Fires a terminal
+    //* running ~/.local/bin/update-all (pacman/AUR + Flatpak + shell plugins +
+    //* cache cleanup) instead of opening a surface.
+    property alias pillShowUpdate: adapter.pillShowUpdate
+    //* Media compressor: the layers glyph in the hover row. Opens the
+    //* compress10mb file picker (images/videos under 10 MB); results arrive as
+    //* desktop notifications.
+    property alias pillShowCompress: adapter.pillShowCompress
 
         //* Session lock: show the avatar above the username on lockscreen/LockSurface.qml.
         property alias lockShowAvatar: adapter.lockShowAvatar
@@ -268,6 +276,8 @@ Singleton {
             property bool pillShowEmoji: true
             property bool pillShowPower: true
             property bool pillShowTimer: true
+            property bool pillShowUpdate: true
+            property bool pillShowCompress: true
             //* Session lock: show the avatar above the username on lockscreen/LockSurface.qml.
             property bool lockShowAvatar: true
             //* Session lock: show the wifi indicator on lockscreen/LockSurface.qml.

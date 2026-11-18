@@ -252,18 +252,22 @@ PillSurface {
     }
 
     /**
-     * Header device picker: an icon-only button that toggles its dropdown. It
-     * reads as an open field (onGlow tint and border) while its list is showing,
-     * the same affordance the display surface uses, so no chevron is needed.
+     * Header device picker: a compact labelled field (icon, current device
+     * name, chevron) that toggles its dropdown list. The label makes the
+     * active output/input visible without opening the menu, and the chevron
+     * turns over while the list is showing.
      */
-    component DevicePickerChip: Rectangle {
+    component DevicePicker: Rectangle {
         id: dchip
         property string glyph: ""
+        property string value: ""
         property bool open: false
         property string tip: ""
         signal toggled()
 
-        width: (root.styled ? 22 : 26) * root.s
+        readonly property real nameW: Math.min(46 * root.s, nameMetrics.advanceWidth)
+
+        width: 39 * root.s + nameW
         height: (root.styled ? 22 : 26) * root.s
         radius: root.styled ? 0 : 8 * root.s
         color: root.styled
@@ -275,13 +279,52 @@ PillSurface {
             : (dchip.open ? Qt.alpha(Theme.onGlow, 0.5) : Theme.border)
         Behavior on color { ColorAnimation { duration: Motion.fast } }
 
-        GlyphIcon {
-            anchors.centerIn: parent
-            width: (root.styled ? 12 : 15) * root.s
-            height: (root.styled ? 12 : 15) * root.s
-            name: dchip.glyph
-            color: root.styled ? (dchip.open ? Theme.vermLit : Theme.subtle) : (dchip.open ? Theme.vermLit : Theme.iconDim)
-            stroke: 1.7
+        TextMetrics {
+            id: nameMetrics
+            font.family: root.styled ? Theme.fontMono : Theme.font
+            font.pixelSize: (root.styled ? 8.5 : 9.5) * root.s
+            font.weight: root.styled ? Font.Normal : Font.Medium
+            text: dchip.value.length ? dchip.value : "None"
+        }
+
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 7 * root.s
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 3 * root.s
+
+            GlyphIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                width: (root.styled ? 11 : 14) * root.s
+                height: (root.styled ? 11 : 14) * root.s
+                name: dchip.glyph
+                color: root.styled ? (dchip.open ? Theme.vermLit : Theme.subtle) : (dchip.open ? Theme.vermLit : Theme.iconDim)
+                stroke: 1.7
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: dchip.nameW
+                text: dchip.value.length ? dchip.value : "None"
+                elide: Text.ElideRight
+                color: root.styled
+                    ? (dchip.open ? Theme.cream : Theme.subtle)
+                    : (dchip.open ? Theme.cream : Theme.iconDim)
+                font.family: root.styled ? Theme.fontMono : Theme.font
+                font.pixelSize: (root.styled ? 8.5 : 9.5) * root.s
+                font.weight: root.styled ? Font.Normal : Font.Medium
+            }
+
+            GlyphIcon {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 7 * root.s
+                height: 7 * root.s
+                name: "chevron-down"
+                color: root.styled ? (dchip.open ? Theme.vermLit : Theme.subtle) : (dchip.open ? Theme.vermLit : Theme.iconDim)
+                stroke: 1.8
+                rotation: dchip.open ? 180 : 0
+                Behavior on rotation { NumberAnimation { duration: Motion.fast } }
+            }
         }
         HoverHandler {
             id: dchipHover
@@ -296,6 +339,7 @@ PillSurface {
             s: root.s
             placement: "below"
             title: dchip.tip
+            desc: dchip.value
             show: dchipHover.hovered && !dchip.open
         }
     }
@@ -343,16 +387,18 @@ PillSurface {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6 * root.s
-            DevicePickerChip {
+            DevicePicker {
                 glyph: "speaker"
+                value: root.deviceLabel(root.sink)
                 open: root.openPicker === "out"
-                tip: "Output device"
+                tip: "Output device — click to choose"
                 onToggled: root.openPicker = root.openPicker === "out" ? "" : "out"
             }
-            DevicePickerChip {
+            DevicePicker {
                 glyph: "mic"
+                value: root.deviceLabel(root.source)
                 open: root.openPicker === "in"
-                tip: "Input device"
+                tip: "Input device — click to choose"
                 onToggled: root.openPicker = root.openPicker === "in" ? "" : "in"
             }
             IconChip {
@@ -400,11 +446,13 @@ PillSurface {
     component DeviceMenu: Item {
         id: menu
         property string kind: ""
+        property string title: ""
         property var model: []
         property var current
         signal pick(var node)
 
         readonly property bool open: root.openPicker === kind
+        readonly property real titleH: menu.title.length ? 17 * root.s : 0
         z: 7
         visible: open
         anchors.top: divider.bottom
@@ -437,7 +485,7 @@ PillSurface {
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: Math.min(menu.model.length * 24 * root.s + 4 * root.s, 150 * root.s)
+            height: menu.titleH + Math.min(menu.model.length * 24 * root.s + 4 * root.s, 150 * root.s)
             clip: true
             radius: root.styled ? 0 : 9 * root.s
             color: Theme.cardBot
@@ -448,9 +496,28 @@ PillSurface {
             border.width: 1
             border.color: root.styled ? Theme.border : Theme.frameBorder
 
+            Text {
+                visible: menu.title.length > 0
+                anchors.top: parent.top
+                anchors.topMargin: 5 * root.s
+                anchors.left: parent.left
+                anchors.leftMargin: 9 * root.s
+                text: menu.title
+                color: Theme.subtle
+                font.family: root.styled ? Theme.fontMono : Theme.font
+                font.pixelSize: (root.styled ? 8 : 9) * root.s
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1.2 * root.s
+                font.capitalization: Font.AllUppercase
+            }
+
             ListView {
-                anchors.fill: parent
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.top: parent.top
                 anchors.margins: 2 * root.s
+                anchors.topMargin: menu.titleH + 2 * root.s
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 model: menu.model
@@ -500,6 +567,7 @@ PillSurface {
 
     DeviceMenu {
         kind: "out"
+        title: "Output"
         model: root.outputSinks
         current: root.sink
         onPick: (node) => Pipewire.preferredDefaultAudioSink = node
@@ -507,6 +575,7 @@ PillSurface {
 
     DeviceMenu {
         kind: "in"
+        title: "Input"
         model: root.inputSources
         current: root.source
         onPick: (node) => Pipewire.preferredDefaultAudioSource = node

@@ -8,6 +8,8 @@ import Quickshell.Io
  * (ddcutil) for the mixer. The persisted vibrance percent is the source of
  * truth: loaded and re-applied once at startup so the tint survives a reboot,
  * and every later set both pushes to nvibrant and writes back the state file.
+ * nvibrant takes one value per GPU port, so the connected ports are probed
+ * once and the value is written only to those, rather than assuming ports 0-2.
  * DDC monitors come from `ddcutil detect` (one brightness fader each); the
  * setvcp/getvcp wire format lives here so every caller speaks it the same.
  * The internal laptop backlight (eDP, no DDC/CI) is driven separately via
@@ -20,6 +22,17 @@ Singleton {
     readonly property string stateFile: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/ukishima/nvibrant-value"
 
     property int vibrance: 40
+
+    /**
+     * Physical output indexes reported by `nvibrant` that have a connected
+     * display. nvibrant takes one value per GPU port in order, so the index of
+     * the active monitor matters: writing `nvibrant 409 0 409` only touches
+     * ports 0 and 2. We probe the ports once (no args lists every port and
+     * marks connected ones "Success") and reuse that map for every later set.
+     */
+    property var vibPorts: []
+    property bool vibPortsKnown: false
+    property int pendingVibranceRaw: -1
 
     /**
      * DDC-capable monitors from `ddcutil detect`: [{ bus, label }] with label
@@ -58,7 +71,25 @@ Singleton {
 
     function applyVibrance(pct) {
         var raw = Math.round(Math.max(0, Math.min(100, pct)) * 1023 / 100);
-        Quickshell.execDetached(["nvibrant", String(raw), "0", String(raw)]);
+        if (!root.vibPortsKnown) {
+            root.pendingVibranceRaw = raw;
+            return;
+        }
+        writeVibrance(raw);
+    }
+
+    /**
+     * Applies an nvibrant raw value (-1024..1023) to every connected port and
+     * zeroes the empty ports in between, as nvibrant requires positional args.
+     */
+    function writeVibrance(raw) {
+        if (!root.vibPorts.length)
+            return;
+        var args = ["nvibrant"];
+        var maxPort = Math.max.apply(null, root.vibPorts);
+        for (var i = 0; i <= maxPort; i++)
+            args.push(root.vibPorts.indexOf(i) >= 0 ? String(raw) : "0");
+        Quickshell.execDetached(args);
     }
 
     function saveVibrance(pct) {
@@ -107,6 +138,40 @@ Singleton {
     function parseBrightness(text) {
         var m = text.match(/C\s+(\d+)\s+/);
         return m ? parseInt(m[1], 10) : -1;
+    }
+
+    /**
+     * Discovers which physical GPU outputs have a display attached. Running
+     * bare `nvibrant` clears vibrance on every port, so this happens once on
+     * startup and the pending set is replayed as soon as the map is known.
+     * Kicked off from onCompleted (not from applyVibrance) so a restore that
+     * races the singleton's construction only has to queue its value.
+     */
+    Component.onCompleted: vibProbe.running = true
+
+    Process {
+        id: vibProbe
+        command: ["nvibrant"]
+        running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var ports = [];
+                var lines = this.text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var m = /\((\d+),[^)]*\)[^•]*•[^•]*•\s*Success/.exec(lines[i]);
+                    if (m)
+                        ports.push(parseInt(m[1], 10));
+                }
+                ports.sort((a, b) => a - b);
+                root.vibPorts = ports;
+                root.vibPortsKnown = true;
+                if (root.pendingVibranceRaw >= 0) {
+                    var raw = root.pendingVibranceRaw;
+                    root.pendingVibranceRaw = -1;
+                    root.writeVibrance(raw);
+                }
+            }
+        }
     }
 
     Process {
