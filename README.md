@@ -2,7 +2,24 @@
 
 > A Quickshell desktop shell for Hyprland and niri.
 
+> [!IMPORTANT]
+> **This is a personal fork of [amanhex/Ukishima](https://github.com/amanhex/Ukishima)** (fork: [`zxxtlz/Ukishima`](https://github.com/zxxtlz/Ukishima)). It tracks upstream `master` and layers a small set of local changes on top. Everything not listed under [How this fork differs](#how-this-fork-differs) is upstream, unmodified. Upstream is the canonical project — use its docs and issue tracker unless a problem is specific to a change listed below.
+
 Ukishima (浮島, *"floating island"*) puts a pill at the top of every monitor and a dock along the bottom. The pill expands in place into surfaces — launcher, media, settings and the rest — rather than opening separate panels. It is a self-contained Quickshell config and does not edit your compositor files.
+
+## How this fork differs
+
+This fork = upstream Ukishima **plus** the following local changes (and nothing else):
+
+- **Readable dynamic palette.** The wallpaper-derived palette now enforces a minimum contrast for every text tier, so the date, captions and secondary copy stay legible on any wallpaper. The contrast solver tries both lightening and darkening (the original assumed dark text and could make mid-tone light surfaces *worse*), and the generated palette records which tone (`light`/`dark`) it settled on. Implemented in `scripts/wallcolors.py` and mirrored in `Singletons/PaletteHue.qml`.
+- **Dynamic dock tone.** The dock's dynamic and manual modes tint from the generated palette, and its decorative tokens (border, sheen, hover, running dot) plus the static-copy fallbacks choose light or dark from the palette tone — so a dynamic dock stays readable on a light wallpaper instead of keeping white-on-light borders.
+- **Dock icon fix.** A window's class is resolved through its desktop entry's `StartupWMClass` (new `byStartupClass()` in `lib/apps.js`, unit-tested) before the coarse app-key fallback, with a generic app-window glyph when nothing matches. This fixes apps such as **LocalSend** that previously showed a blank dock slot.
+- **Compressor progress face.** A new `Singletons/Compress.qml` tracks a running `compress10mb` job; the resting pill shows a determinate progress bar, the current file and a percentage. Toggle under **Settings → Modules**.
+- **Package updater hover action.** A download glyph in the pill's hover row runs `~/.local/bin/update-all` in a terminal (pacman/AUR + Flatpak + shell plugins + cache cleanup) instead of opening a surface. Toggle under **Settings → Modules**.
+- **Labelled mixer pickers.** The mixer header's input and output pickers show the current device name and a chevron rather than an icon alone.
+- **nvibrant fix.** Vibrance is written to the actual connected GPU ports (probed once) instead of assuming ports 0–2, so multi-monitor and non-default port layouts get the correct value.
+
+To update this fork, merge the upstream `master` branch into yours (this repo keeps `origin` pointed at upstream `amanhex/Ukishima` and pushes to the `fork` remote).
 
 ## Preview
 
