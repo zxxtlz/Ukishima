@@ -135,6 +135,8 @@ Singleton {
     //* compress10mb file picker (images/videos under 10 MB); results arrive as
     //* desktop notifications.
     property alias pillShowCompress: adapter.pillShowCompress
+    //* File tray icon in the hover row: files kept by reference, dragged out into apps.
+    property alias pillShowFileTray: adapter.pillShowFileTray
 
         //* Session lock: show the avatar above the username on lockscreen/LockSurface.qml.
         property alias lockShowAvatar: adapter.lockShowAvatar
@@ -278,6 +280,7 @@ Singleton {
             property bool pillShowTimer: true
             property bool pillShowUpdate: true
             property bool pillShowCompress: true
+            property bool pillShowFileTray: true
             //* Session lock: show the avatar above the username on lockscreen/LockSurface.qml.
             property bool lockShowAvatar: true
             //* Session lock: show the wifi indicator on lockscreen/LockSurface.qml.

@@ -31,6 +31,7 @@ SettingsSurface {
         { item: emojiRow, kind: "toggle", get: function () { return Flags.pillShowEmoji; }, set: function (v) { Flags.pillShowEmoji = v; } },
         { item: updateRow, kind: "toggle", get: function () { return Flags.pillShowUpdate; }, set: function (v) { Flags.pillShowUpdate = v; } },
         { item: compressRow, kind: "toggle", get: function () { return Flags.pillShowCompress; }, set: function (v) { Flags.pillShowCompress = v; } },
+        { item: fileTrayRow, kind: "toggle", get: function () { return Flags.pillShowFileTray; }, set: function (v) { Flags.pillShowFileTray = v; } },
         { item: powerRow, kind: "toggle", get: function () { return Flags.pillShowPower; }, set: function (v) { Flags.pillShowPower = v; } }
     ]
 
@@ -152,6 +153,19 @@ SettingsSurface {
             s: root.s
             on: Flags.pillShowCompress
             onToggled: Flags.pillShowCompress = !Flags.pillShowCompress
+        }
+    }
+
+    SettingsRow {
+        id: fileTrayRow
+        surface: root
+        name: "File tray"
+        icon: "folder"
+
+        LinkToggle {
+            s: root.s
+            on: Flags.pillShowFileTray
+            onToggled: Flags.pillShowFileTray = !Flags.pillShowFileTray
         }
     }
 
