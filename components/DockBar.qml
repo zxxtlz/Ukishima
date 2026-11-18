@@ -399,7 +399,6 @@ Item {
         ? Qt.alpha(Util.lerpColor(root.dockCardTop, root.dockAccent, 0.05 * root.dockPaneTint), root.glassAlpha)
         : Util.lerpColor(root.dockCardTop, root.dockAccent, 0.05 * root.dockPaneTint)
     readonly property color dockPaneBot: root.dockGlass
-    readonly property color dockPaneBot: root.dockGlass
         ? Qt.alpha(Util.lerpColor(root.dockCardBot, root.dockAccent, 0.03 * root.dockPaneTint), root.glassAlpha)
         : Util.lerpColor(root.dockCardBot, root.dockAccent, 0.03 * root.dockPaneTint)
     /**
