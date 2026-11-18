@@ -29,6 +29,10 @@ Singleton {
     readonly property string faint: adapter.faint
     readonly property string iconDim: adapter.icon_dim
     readonly property string tickRest: adapter.tick_rest
+    /** "light" or "dark" — which tone the generated ramp settled on. The
+     *  fallback covers a colors.json written before this key existed (and the
+     *  brief window while a wallpaper regen rewrites the file). */
+    readonly property string tone: adapter.tone || "dark"
 
     FileView {
         id: file
@@ -57,6 +61,7 @@ Singleton {
             property string faint: "#6f635b"
             property string icon_dim: "#cdbfb4"
             property string tick_rest: "#cbb6a3"
+            property string tone: "dark"
         }
     }
 }

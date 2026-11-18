@@ -44,6 +44,16 @@ DARK_TEXT = [(0.90, 0.05), (0.97, 0.03), (0.73, 0.07), (0.54, 0.06),
 LIGHT_TEXT = [(0.20, 0.18), (0.10, 0.20), (0.36, 0.14), (0.48, 0.10),
               (0.56, 0.08), (0.28, 0.12), (0.34, 0.12)]
 
+# Minimum contrast:1 each text tier must clear against the pill body. The hue
+# and lightness tables above are a starting point, but a wallpaper's dominant
+# hue and mean lightness move the whole ramp, and a mid-tone one can land a
+# secondary tone (the clock's date, the faint sub-copy) right on top of the
+# background. The floor is applied after the fact so the tiers stay tinted but
+# never blend in; the reference is the LIGHTEST/DARKEST surface, which is the
+# worst case for that tone.
+TEXT_FLOORS = {"cream": 7.0, "bright": 9.0, "subtle": 4.5, "dim": 4.5,
+               "faint": 3.0, "icon_dim": 4.5, "tick_rest": 3.5}
+
 
 def analyze(wallpaper):
     # Bounded: a wedged magick would hang the caller (the QML Process and
@@ -121,26 +131,42 @@ def contrast(a, b):
 
 
 def ensure_contrast(color, bg, ratio):
-    """Shift a colour until it clears ratio:1 against bg, keeping its hue:
-    toward white on a dark background, toward black on a light one."""
+    """Shift a colour until it clears ratio:1 against bg, keeping its hue.
+
+    The direction is chosen by moving AWAY from the background rather than by
+    testing whether bg is "dark": a mid-tone surface (relative luminance just
+    under 0.5, exactly where the light wallpaper ramp lands) was read as dark,
+    so the search lightened the text toward white on a light background and
+    made contrast WORSE. Both directions are tried and the one that reaches the
+    ratio — or gets closest when the background is mid-tone and no colour can —
+    wins.
+    """
     if contrast(color, bg) >= ratio:
         return color
     h, l, s = colorsys.rgb_to_hls(*rgb(color))
-    dark_bg = lum(bg) < 0.5
-    lo, hi = (l, 1.0) if dark_bg else (0.0, l)
-    for _ in range(30):
-        mid = (lo + hi) / 2
-        if contrast(to_hex(colorsys.hls_to_rgb(h, mid, s)), bg) >= ratio:
-            if dark_bg:
-                hi = mid
-            else:
-                lo = mid
+    best, best_c = color, contrast(color, bg)
+    for target in (1.0, 0.0):
+        if target > l:
+            lo, hi = l, target
         else:
-            if dark_bg:
-                lo = mid
+            lo, hi = target, l
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            if contrast(to_hex(colorsys.hls_to_rgb(h, mid, s)), bg) >= ratio:
+                if target > l:
+                    hi = mid
+                else:
+                    lo = mid
             else:
-                hi = mid
-    return to_hex(colorsys.hls_to_rgb(h, hi if dark_bg else lo, s))
+                if target > l:
+                    lo = mid
+                else:
+                    hi = mid
+        cand = to_hex(colorsys.hls_to_rgb(h, hi if target > l else lo, s))
+        c = contrast(cand, bg)
+        if c > best_c:
+            best_c, best = c, cand
+    return best
 
 
 def render_fastfetch(pill):
@@ -212,6 +238,16 @@ def main():
     pill["outline"] = tint(hue, surf_sat, base + (-0.35 if light else 0.35))
     for key, (lit, st) in zip(TEXT_KEYS, text):
         pill[key] = tint(hue, st, lit)
+    # Contrast floor: keep every text tier legible on the generated body even
+    # when the wallpaper pushes the ramp under it. Reference is the extreme
+    # surface (lightest on a dark tone, darkest on a light one) so a tier used
+    # on a tile is covered too.
+    ref_bg = pill["surface_container_highest"]
+    for key, ratio in TEXT_FLOORS.items():
+        pill[key] = ensure_contrast(pill[key], ref_bg, ratio)
+    # Which tone the ramp settled on, for consumers that must pick their own
+    # decorations (the dock's border/dot/sheen are not part of this palette).
+    pill["tone"] = "light" if light else "dark"
     if not hue_only:
         # colors.json is the shared WALLPAPER palette (read by Dyn for the pill's
         # and the dock's dynamic modes). --hue keeps it untouched so a manual

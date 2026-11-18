@@ -403,19 +403,42 @@ Item {
     readonly property color dockPaneBot: root.dockGlass
         ? Qt.alpha(root.blendColor(root.dockCardBot, root.dockAccent, 0.03 * root.dockPaneTint), root.glassAlpha)
         : root.blendColor(root.dockCardBot, root.dockAccent, 0.03 * root.dockPaneTint)
-    readonly property color dockBorder: root.dockEffLight
+    /**
+     * Whether the dock's EFFECTIVE palette is light-toned. Only the decorative
+     * tokens (border, sheen, hover, running dot) and the static copy fallbacks
+     * need this, so it is resolved once here: static light is light, a manual
+     * dock follows its own dark/light switch, and a dynamic dock asks the
+     * wallpaper palette which tone it settled on (colors.json "tone"). Without
+     * it a dynamic dock on a light wallpaper kept white-on-light borders and a
+     * pale grey running dot, which vanished into the pane.
+     */
+    readonly property bool dockToneLight: root.dockEffLight
+        || (root.dockEffManual && !Flags.dockManualDark)
+        || (root.dockEffDyn && Dyn.tone === "light")
+    readonly property color dockBorder: root.dockToneLight
         ? Qt.alpha("#000000", 0.12) : Qt.alpha("#ffffff", 0.14)
-    readonly property color dockSheen: root.dockEffLight
+    readonly property color dockSheen: root.dockToneLight
         ? Qt.alpha("#ffffff", 0.22) : Qt.alpha("#ffffff", 0.07)
-    readonly property color dockHighlight: root.dockEffLight
+    readonly property color dockHighlight: root.dockToneLight
         ? Qt.alpha("#1c1a17", 0.08) : Qt.alpha("#ffffff", 0.12)
-    readonly property color dockDotIdle: root.dockEffLight
+    readonly property color dockDotIdle: root.dockToneLight
         ? Qt.alpha("#2c2926", 0.72) : Qt.alpha("#e4e2e8", 0.72)
+    /**
+     * Title/caption copy. The generated palettes (manual, dynamic) carry their
+     * own contrast-checked text tiers, so they are used directly; only the
+     * static light/dark modes fall back to the fixed greys. Previously a
+     * dynamic or manual dock always took the dark-side grey, which disappeared
+     * on a light generated pane.
+     */
     readonly property color dockCopy: root.dockCustomText ? Flags.textOverride
-        : (root.dockEffLight ? "#3b3833" : "#cfcdd4")
+        : (root.dockEffManual ? root.dockHue.subtle
+        : (root.dockEffDyn ? Dyn.subtle
+        : (root.dockToneLight ? "#3b3833" : "#cfcdd4")))
     readonly property color dockFaint: root.dockCustomText ? Qt.alpha(Flags.textOverride, 0.6)
-        : (root.dockEffLight
-        ? Qt.alpha("#3b3833", 0.6) : Qt.alpha("#cfcdd4", 0.55))
+        : (root.dockEffManual ? Qt.alpha(root.dockHue.faint, 0.9)
+        : (root.dockEffDyn ? Qt.alpha(Dyn.faint, 0.9)
+        : (root.dockToneLight
+        ? Qt.alpha("#3b3833", 0.6) : Qt.alpha("#cfcdd4", 0.55))))
     readonly property color dockHair: Qt.alpha(root.dockCream, 0.08)
     readonly property color dockDim: Qt.rgba(0, 0, 0, 0.45)
 
@@ -940,6 +963,12 @@ Item {
         var apps = DesktopEntries.applications.values;
         var exact = Apps.byId(apps, cls);
         if (exact) return exact;
+        // StartupWMClass bridge: a reverse-DNS window class (LocalSend reports
+        // org.localsend.localsend_app) names itself in the entry's StartupWMClass
+        // even though its last dotted segment is not the entry id. Asked before
+        // the coarse appKey so a precise declaration beats a lookalike.
+        var wm = Apps.byStartupClass(apps, cls);
+        if (wm) return wm;
         var want = root.appKey(cls);
         if (!want) return null;
         for (var j = 0; j < apps.length; j++) {
@@ -1291,6 +1320,24 @@ Item {
                  * is one size smaller than it used to be so the hover swell
                  * has room to grow proportionally bigger.
                  */
+                /**
+                 * Generic fallback: a chip whose class resolved to no entry (or
+                 * whose entry names an icon the theme does not carry) would
+                 * otherwise draw an empty slot. A window glyph keeps the chip
+                 * legible and clickable until a real icon is found.
+                 */
+                GlyphIcon {
+                    anchors.centerIn: chipIcon
+                    visible: !chip.divider
+                        && (chipIcon.source === "" || chipIcon.status === Image.Error)
+                    width: Math.round(chipIcon.width * 0.74)
+                    height: width
+                    name: "app-window"
+                    color: root.dockCream
+                    opacity: 0.72
+                    stroke: 1.6
+                }
+
                 Image {
                     id: chipIcon
                     visible: !chip.divider
